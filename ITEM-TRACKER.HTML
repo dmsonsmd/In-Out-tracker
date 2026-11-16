@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Household IN / OUT Tracker</title>
+  <!-- HTML5-QRCode Scanner Library for barcode & package scanning -->
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --border: #cbd5e1;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 1.5rem 1rem; }
+    .container { max-width: 900px; margin: 0 auto; }
+    
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .tab-btn { flex: 1; padding: 0.85rem; border: none; background: #e2e8f0; font-weight: 600; cursor: pointer; border-radius: 8px; font-size: 0.95rem; transition: 0.2s; }
+    .tab-btn.active { background: var(--primary); color: white; }
+
+    .card { background: var(--card); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.06); border: 1px solid var(--border); margin-bottom: 1.5rem; }
+    h2 { margin-bottom: 1.25rem; font-size: 1.25rem; }
+
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem; color: #475569; }
+    input, select, textarea { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+    .type-selector { display: flex; gap: 1rem; margin-bottom: 1.2rem; }
+    .radio-card { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.8rem; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; font-weight: 700; }
+    .radio-card:has(input[value="IN"]:checked) { border-color: var(--success); color: var(--success); background: #f0fdf4; }
+    .radio-card:has(input[value="OUT"]:checked) { border-color: var(--danger); color: var(--danger); background: #fef2f2; }
+
+    /* Action bar & buttons */
+    .input-with-btn { display: flex; gap: 0.5rem; }
+    .scan-btn { padding: 0.75rem 1rem; background: #0f172a; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; white-space: nowrap; font-size: 0.85rem; }
+
+    .photo-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .btn-action { display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.8rem; background: #f1f5f9; border: 1px dashed var(--primary); border-radius: 6px; color: var(--primary); font-weight: 600; cursor: pointer; text-align: center; }
+    .btn-action:hover { background: #e0f2fe; }
+
+    .preview-list { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .preview-card { position: relative; width: 80px; height: 80px; }
+    .preview-item { width: 100%; height: 100%; border-radius: 6px; object-fit: cover; border: 1px solid var(--border); }
+    .remove-btn { position: absolute; top: -7px; right: -7px; background: var(--danger); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+    .btn { width: 100%; padding: 0.85rem; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    .btn:hover { background: var(--primary-hover); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Modals */
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); z-index: 9999; align-items: center; justify-content: center; padding: 1rem; }
+    .modal-content { background: white; border-radius: 12px; padding: 1.5rem; width: 100%; max-width: 480px; text-align: center; }
+    .modal-close { margin-top: 1rem; width: 100%; padding: 0.7rem; background: #475569; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+    #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-top: 0.5rem; }
+
+    /* Admin Styles */
+    .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+    .metric-box { background: #f8fafc; border: 1px solid var(--border); padding: 1rem; border-radius: 8px; text-align: center; }
+    .metric-box h3 { font-size: 0.8rem; text-transform: uppercase; color: #64748b; margin-bottom: 0.3rem; }
+    .metric-box p { font-size: 1.6rem; font-weight: 700; }
+
+    .table-container { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left; }
+    th, td { padding: 0.7rem 0.85rem; border-bottom: 1px solid var(--border); }
+    th { background: #f8fafc; font-weight: 600; white-space: nowrap; }
+    .tag { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.75rem; }
+    .tag-in { background: #dcfce7; color: var(--success); }
+    .tag-out { background: #fee2e2; color: var(--danger); }
+    .photo-links { display: flex; flex-direction: column; gap: 0.25rem; }
+    .thumb-link { color: var(--primary); font-weight: 600; text-decoration: none; font-size: 0.8rem; }
+    .thumb-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Top Bar: Share Page QR -->
+  <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
+    <button type="button" class="scan-btn" onclick="showShareQR()" style="background: #334155;">
+      📲 Share Page QR
+    </button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab(event, 'userTab')">➕ Log Item (IN / OUT)</button>
+    <button class="tab-btn" onclick="switchTab(event, 'adminTab')">🔒 Admin Dashboard</button>
+  </div>
+
+  <!-- 1. USER ENTRY FORM -->
+  <div id="userTab" class="card">
+    <h2>Record Daily Household Movement</h2>
+    <form id="entryForm" onsubmit="handleFormSubmit(event)">
+      
+      <!-- IN / OUT Toggle -->
+      <div class="type-selector">
+        <label class="radio-card">
+          <input type="radio" name="type" value="IN" checked onchange="updateCategories()" required> 📥 ITEM IN
+        </label>
+        <label class="radio-card">
+          <input type="radio" name="type" value="OUT" onchange="updateCategories()" required> 📤 ITEM OUT
+        </label>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="date" required>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="category" required>
+            <!-- Populated dynamically via updateCategories() -->
+          </select>
+        </div>
+      </div>
+
+      <!-- Item Description with Barcode/QR scan capability -->
+      <div class="form-group">
+        <label>Item Name / Description</label>
+        <div class="input-with-btn">
+          <input type="text" id="itemName" placeholder="e.g., Clothes for dry cleaning, Amazon box, 2kg Apples" required>
+          <button type="button" class="scan-btn" onclick="openScanner()">
+            📷 Scan Code
+          </button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Quantity</label>
+          <input type="number" step="any" id="quantity" placeholder="e.g., 2" required>
+        </div>
+        <div class="form-group">
+          <label>Unit</label>
+          <select id="unit">
+            <option value="pcs">Pieces (pcs)</option>
+            <option value="kg">Kilogram (kg)</option>
+            <option value="liters">Liters (L)</option>
+            <option value="packets">Packets / Bags</option>
+            <option value="boxes">Boxes</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Separate Person & Vendor -->
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Person (Family / Staff)</label>
+          <input type="text" id="person" placeholder="e.g., Self, Alex, Maid" required>
+        </div>
+        <div class="form-group">
+          <label>Vendor / Source (Store, Courier, Company)</label>
+          <input type="text" id="vendor" placeholder="e.g., Amazon, Blue Dart, Dhobi / Laundry" required>
+        </div>
+      </div>
+
+      <!-- Native Camera & Multi-Photo Upload -->
+      <div class="form-group">
+        <label>Attach Photos (Live snaps or Gallery)</label>
+        <div class="photo-actions">
+          <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="handleFileSelect(event)" style="display:none;">
+          <div class="btn-action" onclick="document.getElementById('cameraInput').click()">
+            📸 Snap Photo
+          </div>
+
+          <input type="file" id="galleryInput" accept="image/*" multiple onchange="handleFileSelect(event)" style="display:none;">
+          <div class="btn-action" onclick="document.getElementById('galleryInput').click()">
+            📁 Choose Files
+          </div>
+        </div>
+        <div id="previewContainer" class="preview-list"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Remarks / Notes</label>
+        <textarea id="notes" rows="2" placeholder="e.g., Given for wash, expected on Friday"></textarea>
+      </div>
+
+      <button type="submit" id="submitBtn" class="btn">Log Item</button>
+      <p id="formStatus" style="margin-top: 1rem; font-weight: 600; text-align: center;"></p>
+    </form>
+  </div>
+
+  <!-- 2. ADMIN DASHBOARD -->
+  <div id="adminTab" class="card" style="display: none;">
+    <h2>Admin Oversight</h2>
+
+    <div id="adminLogin">
+      <div class="form-group">
+        <label>Admin Password</label>
+        <input type="password" id="adminPassword" placeholder="Enter admin password">
+      </div>
+      <button class="btn" onclick="loadAdminDashboard()">Unlock View</button>
+      <p id="adminError" style="color: var(--danger); margin-top: 0.5rem;"></p>
+    </div>
+
+    <div id="adminDataSection" style="display: none;">
+      <div class="metric-grid">
+        <div class="metric-box">
+          <h3>Total Entries</h3>
+          <p id="totalCount">0</p>
+        </div>
+        <div class="metric-box">
+          <h3 style="color: var(--success);">Total IN</h3>
+          <p id="inCount">0</p>
+        </div>
+        <div class="metric-box">
+          <h3 style="color: var(--danger);">Total OUT</h3>
+          <p id="outCount">0</p>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Item</th>
+              <th>Category</th>
+              <th>Qty</th>
+              <th>Person</th>
+              <th>Vendor</th>
+              <th>Photos</th>
+            </tr>
+          </thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 1: BARCODE & PACKAGE SCANNER -->
+<div id="scannerModal" class="modal">
+  <div class="modal-content">
+    <h3 style="margin-bottom: 0.5rem;">Scan Item Barcode / QR</h3>
+    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;">Point your camera at the package barcode</p>
+    <div id="reader"></div>
+    <button type="button" class="modal-close" onclick="closeScanner()">Cancel</button>
+  </div>
+</div>
+
+<!-- MODAL 2: SHARE PAGE QR CODE -->
+<div id="shareModal" class="modal">
+  <div class="modal-content">
+    <h3 style="margin-bottom: 0.5rem;">Scan to Open This Page</h3>
+    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Family or staff can scan this using their phone camera</p>
+    <div id="qrcodeContainer" style="display: flex; justify-content: center; align-items: center; min-height: 200px; margin-bottom: 1rem;">
+      <img id="qrImage" src="" alt="Page QR Code" style="width: 200px; height: 200px; border-radius: 8px; display: none;">
+      <p id="qrLoading" style="color: #64748b; font-size: 0.85rem;">Generating QR Code...</p>
+    </div>
+    <div style="margin-bottom: 1rem;">
+      <label style="font-size: 0.75rem; text-align: left; color: #64748b;">Target Link:</label>
+      <input type="text" id="shareUrlInput" style="font-size: 0.8rem; padding: 0.4rem; text-align: center;" oninput="updateQrCode(this.value)">
+    </div>
+    <button type="button" class="modal-close" onclick="closeShareQR()">Close</button>
+  </div>
+</div>
+
+<script>
+  // ============================================================
+  // PASTE YOUR DEPLOYED GOOGLE APPS SCRIPT URL HERE:
+  // ============================================================
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzewinkw1qpTtdKjFrOAJqqnFeSvRM7Uv2DEGd05qg35C6dSycFvfsJllzuic4sD34jsQ/exec";
+
+  document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+  // --- DYNAMIC CATEGORIES FOR IN VS OUT ---
+  const inCategories = [
+    "Groceries / Food/किराना ",
+    "Vegetables & Fruits/सब्जी और फल",
+    "Laundry / Clothes/कपड़े धोना / वस्त्र",
+    "Parcel / Courier/पार्सल ",
+    "Other"
+  ];
+
+  const outCategories = [
+    "Laundry / Clothes/कपड़े धोना / वस्त्र",
+    "Courier / Parcel/पार्सल",
+    "Other"
+  ];
+
+  function updateCategories() {
+    const selectedType = document.querySelector('input[name="type"]:checked').value;
+    const categorySelect = document.getElementById('category');
+    const categories = (selectedType === 'OUT') ? outCategories : inCategories;
+
+    categorySelect.innerHTML = "";
+    categories.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.innerText = cat;
+      categorySelect.appendChild(opt);
+    });
+  }
+
+  // Initialize categories on load
+  updateCategories();
+
+  function switchTab(e, tabId) {
+    document.getElementById('userTab').style.display = tabId === 'userTab' ? 'block' : 'none';
+    document.getElementById('adminTab').style.display = tabId === 'adminTab' ? 'block' : 'none';
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    e.currentTarget.classList.add('active');
+  }
+
+  // --- ITEM SCANNER LOGIC ---
+  let html5QrCode = null;
+
+  function openScanner() {
+    document.getElementById('scannerModal').style.display = 'flex';
+    html5QrCode = new Html5Qrcode("reader");
+
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    
+    html5QrCode.start(
+      { facingMode: "environment" },
+      config,
+      (decodedText) => {
+        document.getElementById('itemName').value = decodedText;
+        closeScanner();
+      },
+      (error) => {
+        // Continuous scan loop
+      }
+    ).catch(err => {
+      alert("Camera error: " + err + "\nPlease confirm browser camera permissions.");
+      closeScanner();
+    });
+  }
+
+  function closeScanner() {
+    if (html5QrCode) {
+      html5QrCode.stop().then(() => {
+        html5QrCode.clear();
+        document.getElementById('scannerModal').style.display = 'none';
+      }).catch(() => {
+        document.getElementById('scannerModal').style.display = 'none';
+      });
+    } else {
+      document.getElementById('scannerModal').style.display = 'none';
+    }
+  }
+
+  // --- SHARE PAGE QR GENERATOR ---
+  function showShareQR() {
+    const modal = document.getElementById('shareModal');
+    let currentUrl = window.location.href;
+
+    if (currentUrl.startsWith('file://')) {
+      currentUrl = "https://your-username.github.io/house-tracker/";
+    }
+
+    document.getElementById('shareUrlInput').value = currentUrl;
+    updateQrCode(currentUrl);
+    modal.style.display = 'flex';
+  }
+
+  function updateQrCode(url) {
+    const qrImg = document.getElementById('qrImage');
+    const loadingText = document.getElementById('qrLoading');
+
+    if (!url || url.trim() === '') return;
+
+    loadingText.style.display = 'block';
+    qrImg.style.display = 'none';
+
+    const encodedUrl = encodeURIComponent(url.trim());
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodedUrl}`;
+
+    qrImg.onload = () => {
+      loadingText.style.display = 'none';
+      qrImg.style.display = 'block';
+    };
+
+    qrImg.onerror = () => {
+      loadingText.innerText = "Failed to load QR image. Check your internet connection.";
+    };
+  }
+
+  function closeShareQR() {
+    document.getElementById('shareModal').style.display = 'none';
+  }
+
+  // --- PHOTO MANAGEMENT ---
+  let selectedImages = [];
+
+  async function handleFileSelect(e) {
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+      const b64 = await fileToBase64(file);
+      selectedImages.push({
+        bytes: b64,
+        name: file.name || `photo_${Date.now()}.jpg`,
+        mimeType: file.type || 'image/jpeg'
+      });
+    }
+    renderPreviews();
+    e.target.value = "";
+  }
+
+  function removeImage(index) {
+    selectedImages.splice(index, 1);
+    renderPreviews();
+  }
+
+  function renderPreviews() {
+    const container = document.getElementById('previewContainer');
+    container.innerHTML = "";
+    selectedImages.forEach((img, i) => {
+      const card = document.createElement('div');
+      card.className = 'preview-card';
+      card.innerHTML = `
+        <img src="${img.bytes}" class="preview-item">
+        <button type="button" class="remove-btn" onclick="removeImage(${i})">✕</button>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  // --- SUBMIT ENTRY ---
+  async function handleFormSubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    const status = document.getElementById('formStatus');
+
+    btn.disabled = true;
+    status.innerText = "Saving entry and uploading photo(s) to Google Drive...";
+    status.style.color = "var(--primary)";
+
+    const payload = {
+      type: document.querySelector('input[name="type"]:checked').value,
+      date: document.getElementById('date').value,
+      category: document.getElementById('category').value,
+      itemName: document.getElementById('itemName').value,
+      quantity: document.getElementById('quantity').value,
+      unit: document.getElementById('unit').value,
+      person: document.getElementById('person').value,
+      vendor: document.getElementById('vendor').value,
+      notes: document.getElementById('notes').value,
+      images: selectedImages
+    };
+
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: "submitEntry", payload: payload })
+      });
+      const res = await response.json();
+
+      if (res.success) {
+        status.innerText = res.message || "Saved successfully!";
+        status.style.color = "var(--success)";
+        document.getElementById('entryForm').reset();
+        selectedImages = [];
+        renderPreviews();
+        updateCategories(); // Reset categories to defaults
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+      } else {
+        status.innerText = "Error: " + res.error;
+        status.style.color = "var(--danger)";
+      }
+    } catch (err) {
+      status.innerText = "Network / Script Error: " + err.message;
+      status.style.color = "var(--danger)";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // --- ADMIN DASHBOARD ---
+  async function loadAdminDashboard() {
+    const password = document.getElementById('adminPassword').value;
+    const errText = document.getElementById('adminError');
+    errText.innerText = "Loading records...";
+
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: "getAdminData", password: password })
+      });
+      const res = await response.json();
+
+      if (!res.success) {
+        errText.innerText = res.error;
+        return;
+      }
+
+      errText.innerText = "";
+      document.getElementById('adminLogin').style.display = "none";
+      document.getElementById('adminDataSection').style.display = "block";
+      populateTable(res.rows);
+
+    } catch (err) {
+      errText.innerText = "Error contacting backend: " + err.message;
+    }
+  }
+
+  function populateTable(rows) {
+    let inCount = 0;
+    let outCount = 0;
+    const tbody = document.getElementById('adminTableBody');
+    tbody.innerHTML = "";
+
+    rows.forEach(r => {
+      if (r.type === 'IN') inCount++;
+      if (r.type === 'OUT') outCount++;
+
+      let photosHtml = '-';
+      if (r.imageUrl && r.imageUrl.trim() !== '') {
+        const urls = r.imageUrl.split(',').map(u => u.trim()).filter(Boolean);
+        photosHtml = `<div class="photo-links">` + 
+          urls.map((url, i) => `<a href="${url}" target="_blank" class="thumb-link">🔗 Photo ${i + 1}</a>`).join('') + 
+          `</div>`;
+      }
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.date}</td>
+        <td><span class="tag ${r.type === 'IN' ? 'tag-in' : 'tag-out'}">${r.type}</span></td>
+        <td><strong>${escape(r.itemName)}</strong><br><small style="color: #64748b">${escape(r.notes)}</small></td>
+        <td>${escape(r.category)}</td>
+        <td>${r.quantity} ${r.unit}</td>
+        <td>${escape(r.person || '-')}</td>
+        <td>${escape(r.vendor || '-')}</td>
+        <td>${photosHtml}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('totalCount').innerText = rows.length;
+    document.getElementById('inCount').innerText = inCount;
+    document.getElementById('outCount').innerText = outCount;
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+    });
+  }
+
+  function escape(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s]);
+  }
+</script>
+
+</body>
+</html>
